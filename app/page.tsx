@@ -1,33 +1,42 @@
 "use client";
 
 import "@blocknote/core/fonts/inter.css";
-import { BlockNoteView } from "@blocknote/mantine";
 import "@blocknote/mantine/style.css";
 import { useCreateBlockNote } from "@blocknote/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import dynamic from "next/dynamic";
+
+// Memanggil BlockNoteView secara dinamis agar tidak error "window is not defined"
+const BlockNoteView = dynamic(
+  () => import("@blocknote/mantine").then((mod) => mod.BlockNoteView),
+  { ssr: false }
+);
 
 export default function App() {
   const [tema, setTema] = useState<"light" | "dark">("light");
   const [sudahSiap, setSudahSiap] = useState(false);
 
-  // 1. Biarkan editor kosong dulu saat inisialisasi agar tidak Error "Window not defined"
   const editor = useCreateBlockNote();
 
-  // 2. Baru ambil data setelah halaman tampil di browser
+  // Memastikan kode hanya berjalan di browser (Client Side)
   useEffect(() => {
-    async function muatData() {
+    setSudahSiap(true);
+    
+    const muatData = async () => {
       const dataLama = localStorage.getItem("isi-catatan");
       if (dataLama && editor) {
-        // Masukkan data lama ke editor
-        const isi = JSON.parse(dataLama);
-        editor.replaceBlocks(editor.document, isi);
+        try {
+          const isi = JSON.parse(dataLama);
+          editor.replaceBlocks(editor.document, isi);
+        } catch (e) {
+          console.error("Gagal memuat data:", e);
+        }
       }
-      setSudahSiap(true);
-    }
+    };
+
     muatData();
   }, [editor]);
 
-  // 3. Fungsi simpan
   const simpanCatatan = () => {
     if (editor) {
       const isi = JSON.stringify(editor.document);
@@ -36,13 +45,13 @@ export default function App() {
   };
 
   const buatBaru = () => {
-    if (confirm("Mulai catatan baru? Catatan lama akan dihapus.")) {
+    if (typeof window !== "undefined" && confirm("Mulai catatan baru? Catatan lama akan dihapus.")) {
       localStorage.removeItem("isi-catatan");
       window.location.reload();
     }
   };
 
-  // Tampilkan loading putih sebentar sampai data siap
+  // Jika belum di browser, jangan tampilkan apa-apa dulu
   if (!sudahSiap) return null;
 
   return (
