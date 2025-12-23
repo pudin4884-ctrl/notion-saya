@@ -6,7 +6,7 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { useCreateBlockNote } from "@blocknote/react";
 
-// 1. Memanggil BlockNoteView secara dinamis (Sangat Penting agar Vercel tidak Error)
+// Load BlockNoteView secara dinamis dan matikan SSR (Server Side Rendering)
 const BlockNoteView = dynamic(
   () => import("@blocknote/mantine").then((mod) => mod.BlockNoteView),
   { ssr: false }
@@ -14,90 +14,48 @@ const BlockNoteView = dynamic(
 
 export default function App() {
   const [tema, setTema] = useState<"light" | "dark">("light");
-  const [sudahSiap, setSudahSiap] = useState(false);
-
-  // 2. Inisialisasi editor dengan tipe 'any' agar TypeScript tidak protes saat build
+  const [isClient, setIsClient] = useState(false);
+  
   const editor: any = useCreateBlockNote();
 
-  // 3. Gunakan useEffect untuk menandakan browser sudah siap
+  // Pastikan kode hanya berjalan setelah komponen menempel di browser
   useEffect(() => {
-    setSudahSiap(true);
+    setIsClient(true);
   }, []);
 
-  // 4. Efek untuk memuat data dari localStorage setelah editor & browser siap
   useEffect(() => {
-    if (sudahSiap && editor) {
+    if (isClient && editor && typeof window !== "undefined") {
       const dataLama = localStorage.getItem("isi-catatan");
       if (dataLama) {
         try {
           const isi = JSON.parse(dataLama);
           editor.replaceBlocks(editor.document, isi);
         } catch (e) {
-          console.error("Gagal memuat data:", e);
+          console.error(e);
         }
       }
     }
-  }, [sudahSiap, editor]);
+  }, [isClient, editor]);
 
-  // 5. Fungsi Simpan
   const simpanCatatan = () => {
-    if (editor) {
-      const isi = JSON.stringify(editor.document);
-      localStorage.setItem("isi-catatan", isi);
+    if (editor && typeof window !== "undefined") {
+      localStorage.setItem("isi-catatan", JSON.stringify(editor.document));
     }
   };
 
-  // 6. Fungsi Buat Baru
-  const buatBaru = () => {
-    if (confirm("Mulai catatan baru? Catatan lama akan dihapus.")) {
-      localStorage.removeItem("isi-catatan");
-      window.location.reload();
-    }
-  };
-
-  // Tampilan kosong sementara agar tidak terjadi Error "window is not defined"
-  if (!sudahSiap) return null;
+  // JANGAN merender apapun jika bukan di client (ini kunci agar tidak error lagi)
+  if (!isClient) return null;
 
   return (
-    <div style={{ 
-      display: "flex", 
-      height: "100vh", 
-      backgroundColor: tema === "light" ? "#ffffff" : "#1f1f1f",
-      color: tema === "light" ? "#37352f" : "#ffffff",
-      transition: "background 0.3s ease"
-    }}>
-      {/* Sidebar */}
-      <div style={{ 
-        width: "250px", 
-        backgroundColor: tema === "light" ? "#f7f7f5" : "#2f2f2f", 
-        borderRight: "1px solid " + (tema === "light" ? "#e5e5e5" : "#444"), 
-        padding: "20px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "10px"
-      }}>
-        <p style={{ fontWeight: "bold", marginBottom: "10px" }}>📁 Menu Utama</p>
-        <button onClick={buatBaru} style={{ padding: "10px", cursor: "pointer", borderRadius: "6px", border: "1px solid #888", background: "white", color: "black" }}>
-          ➕ Catatan Baru
-        </button>
-        <button onClick={() => setTema(tema === "light" ? "dark" : "light")} style={{ padding: "10px", cursor: "pointer", borderRadius: "6px", border: "none", backgroundColor: "#37352f", color: "white" }}>
-          {tema === "light" ? "🌙 Mode Gelap" : "☀️ Mode Terang"}
+    <div style={{ display: "flex", height: "100vh", backgroundColor: tema === "light" ? "#fff" : "#1f1f1f", color: tema === "light" ? "#000" : "#fff" }}>
+      <div style={{ width: "200px", padding: "20px", borderRight: "1px solid #ccc" }}>
+        <button onClick={() => setTema(tema === "light" ? "dark" : "light")} style={{ padding: "10px", cursor: "pointer" }}>
+          {tema === "light" ? "🌙 Dark" : "☀️ Light"}
         </button>
       </div>
-
-      {/* Area Mengetik */}
-      <div style={{ flex: 1, padding: "40px", overflowY: "auto" }}>
-        <h1 style={{ fontSize: "2.5rem", fontWeight: "bold", marginBottom: "30px" }}>
-          Notion Saya 📝
-        </h1>
-        {/* Hanya tampilkan Editor jika editor sudah siap */}
-        {editor && (
-          <BlockNoteView 
-            editor={editor} 
-            onChange={simpanCatatan} 
-            theme={tema} 
-          />
-        )}
+      <div style={{ flex: 1, padding: "40px" }}>
+        <h1>Notion Saya 📝</h1>
+        <BlockNoteView editor={editor} onChange={simpanCatatan} theme={tema} />
       </div>
     </div>
   );
